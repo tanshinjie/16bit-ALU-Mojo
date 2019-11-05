@@ -1,0 +1,35 @@
+module adder16 (  
+  input a[16],
+  input b[16],
+  input alufn[6],
+  input carryOut[16],
+  output op[16],
+  output z,
+  output v,
+  output n
+    
+) {
+  
+  always {
+    case(alufn[1:0]) {
+      default:
+        op = 0;
+      2b00:
+        op = a + b;
+      2b01: 
+        op = a - b;
+      2b10:
+        op = a * b;
+      }
+    
+    if (a == b && alufn[0] == 1) {
+      z = 1;
+    } else {
+      z = 0;
+    }
+    v = ( a[15] & (!carryOut[15]) & (b[15] ^ alufn[0])) | ((!a[15]) & carryOut[15] & !(b[15] ^ alufn[0]));
+    n = carryOut[15];
+    
+    }
+  
+  }

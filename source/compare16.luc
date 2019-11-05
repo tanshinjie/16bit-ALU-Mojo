@@ -1,0 +1,25 @@
+module compare16 (
+  input alufn[6],
+  input a[16],
+  input b[16],
+  input z,
+  input v,
+  input n,
+  output op[16]
+) {
+  
+  always {
+    op[15:1] = 0;
+    case(alufn[2:0]) {
+      3b011:
+          op[0] = z;
+      3b101:
+          op[0] = v ^ n; 
+      3b111:
+          op[0] = a <= b ; // for some reason z | (v^n) will throw error, therefore we implement a <= b here instead
+      default:
+        op[0] = 0;
+    }
+  }  
+}
+        

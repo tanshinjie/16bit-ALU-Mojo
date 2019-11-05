@@ -1,0 +1,583 @@
+module mojo_top (
+    input clk,              // 50MHz clock
+    input rst_n,            // reset button (active low)
+    output led [8],         // 8 user controllable LEDs
+    input cclk,             // configuration clock, AVR ready when high
+    output spi_miso,        // AVR SPI MISO
+    input spi_ss,           // AVR SPI Slave Select
+    input spi_mosi,         // AVR SPI MOSI
+    input spi_sck,          // AVR SPI Clock
+    output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,           // AVR TX (FPGA RX)
+    output avr_rx,          // AVR RX (FPGA TX)
+    input avr_rx_busy,       // AVR RX buffer full
+    output io_led [3][8],   // LEDs on IO Shield
+    output io_seg [8],      // 7-segment LEDs on IO Shield
+    output io_sel [4],      // Digit select on IO Shield
+    input io_button [5],    // 5 buttons on IO Shield
+    input io_dip [3][8]     // DIP switches on IO Shield
+    
+  ) {
+  
+  sig rst;                  // reset signal
+  
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+    button_conditioner btn_conditionerA;
+    button_conditioner btn_conditionerM;
+    button_conditioner btn_conditionerInput;
+        
+    .rst(rst) {
+      dff counter[27];     // counter to give delay
+      dff aInput[16];      // d flip flop to store value of a input
+      dff bInput[16];      // d flip flop to store value of b input
+      dff alufnInput[6];   // d flip flop to store value of alufn input
+      multi_seven_seg seg; 
+      fsm states(#INIT(START)) = {ADDERADD, ADDERSUB, ADDERADDOF, ADDERSUBOF, ADDERERROR,ADDMUL, ADDMULOF, 
+      COMPAREEQUALSTRUE, COMPAREEQUALSFALSE, COMPARELESSTHANTRUE, COMPARELESSTHANFALSE, COMPARELESSANDEQUALS1, 
+        COMPARELESSANDEQUALS2, COMPARELESSANDEQUALS3, COMPAREERROR, BOOLEANAND, BOOLEANOR, BOOLEANXOR, BOOLEANA, 
+        BOOLEANERROR, SHIFTLEFT, SHIFTRIGHT, SHIFTRIGHTARITH, SHIFTERROR,MANUALA, MANUALB, MANUALALUFN,MANUALRESULT,START};      
+    }
+  }
+  const MSB = 26; 
+  alu16 alu;
+  sig result[16];
+ 
+
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+    
+    led = 8h00;             // turn LEDs off
+    spi_miso = bz;          // not using SPI
+    spi_channel = bzzzz;    // not using flags
+    avr_rx = bz;            // not using serial port
+    
+    states.d=states.q;
+    alu.a = 16b0;
+    alu.b = 16b0;
+    alu.alufn = 6b0;
+   
+    seg.values = {5h0, 5h0, 5h0, 5h0};
+
+    
+    io_led = 3x{{8h00}};          // turn LEDs off
+    io_seg =  ~seg.seg;           // turn segments off
+    io_sel =  ~seg.sel;           // select no digits
+    
+    btn_conditionerM.in = io_button[3];        
+    btn_conditionerA.in = io_button[4];      
+    btn_conditionerInput.in = io_button[1];      
+    
+    //Statemachine
+    case (states.q) {
+    states.START:
+      seg.values = {5h14, 5he, 5h10, 5h0};
+      if (btn_conditionerM.out == 1) {
+      states.d = states.MANUALA;
+      }
+      if (btn_conditionerA.out == 1) {
+      states.d = states.ADDERADD;
+      }
+    states.MANUALA:
+      aInput.d = c{io_dip[1],io_dip[0]};  
+      io_led[1] = io_dip[1];
+      io_led[0] = io_dip[0];
+      seg.values = {5hf,5ha,5h1,5h12};
+      counter.d = counter.q+1;
+      if (btn_conditionerInput.out == 1 && counter.q[MSB]==1) {
+        states.d = states.MANUALB;
+        counter.d = 0;
+      }
+    states.MANUALB:
+      bInput.d = c{io_dip[1],io_dip[0]};  
+      io_led[0] = io_dip[0];
+      io_led[1] = io_dip[1];
+      seg.values = {5hf,5hb,5h1,5h12};
+      counter.d = counter.q+1;
+      if (btn_conditionerInput.out == 1 && counter.q[MSB]==1) {
+        states.d = states.MANUALALUFN;
+        counter.d = 0;
+      }
+    states.MANUALALUFN:    
+      alufnInput.d = io_dip[2][5:0]; 
+      io_led[2][5:0] = io_dip[2][5:0];
+      counter.d = counter.q+1;
+      seg.values = {5h0,5h16,5he,5h13};
+      if (btn_conditionerInput.out == 1 && counter.q[MSB]==1) {
+        states.d = states.MANUALRESULT;
+        counter.d = 0;
+      }
+    states.MANUALRESULT:
+      seg.values = {5hf, 5ha, 5h12, 5h5};
+      alu.a = aInput.q;
+      alu.b = bInput.q;
+      alu.alufn = alufnInput.q;
+      io_led[0] = alu.op[7:0];
+      io_led[1] = alu.op[15:8];
+      states.d = states.MANUALRESULT;
+        
+      // mathematical operation
+    states.ADDERADD:
+      alu.alufn = 6b0;
+      alu.a = 16b1100100; //100
+      alu.b = 16b10111; //23
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      seg.values = {5ha, 5hd, 5hd, 5ha};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 16b1111011) {
+        states.d = states.ADDERSUB;
+        counter.d = 0;
+      }
+      if (io_dip[0][0] == 1) {
+        result = 16b0;
+      }
+      if (counter.q[MSB]==1 && result != 16b1111011) {
+        states.d = states.ADDERERROR;
+        counter.d = 0;
+      }
+        
+    states.ADDERSUB:
+      alu.alufn = 6b1;
+      alu.a = 16b1100100; //100
+      alu.b = 16b10111; //23
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      seg.values = {5ha, 5hd, 5hd, 5h5};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 16b1001101) {
+        states.d = states.ADDERADDOF;
+        counter.d = 0;
+        }
+      if (io_dip[0][0] == 1) {
+        result = 16b0;
+      }
+      if (counter.q[MSB]==1 && result != 16b1001101) {
+        counter.d = 0;
+        states.d = states.ADDERERROR;
+        }
+      
+    // overflow will show on io_led[0][0]
+    states.ADDERADDOF: // Test case of adding overflow 16384+16385=32768
+      alu.alufn = 6b0;
+      alu.a = 16b0100000000000000; //16384
+      alu.b = 16b0100000000000001; //16385
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      io_led[2][7] = 1; // indicate testing overflow case
+      seg.values = {5ha, 5hd, 5hd, 5ha};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 16b1000000000000001){
+        states.d = states.ADDERSUBOF;
+        io_led[0][0] = result[15];
+        counter.d = 0;
+          }
+      if (io_dip[0][0] == 1) {
+            result = 16b0;
+          }
+      if (counter.q[MSB]==1 && result != 16b1000000000000001) {
+        states.d = states.ADDERERROR;
+        counter.d = 0;
+        }
+     
+    states.ADDERSUBOF: // Test case of subtracting overflow -32768 - 1 = -32769
+      alu.alufn = 6b1;
+      alu.a = 16b1000000000000000; //-32768
+      alu.b = 16b0000000000000001; // 1
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      io_led[2][7] = 1; // indicate testing overflow case
+      seg.values = {5ha, 5hd, 5hd, 5h5};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 16b0111111111111111){
+        states.d = states.ADDMUL;
+        counter.d = 0;
+          }
+      if (io_dip[0][0] == 1) {
+          result = 16b0;
+        }
+      if (counter.q[MSB]==1 && result != 16b0111111111111111) {
+        states.d = states.ADDERERROR;
+        counter.d = 0;
+        }        
+    states.ADDMUL: // 3 x 4 = 12
+      alu.alufn = 6b10;
+      alu.a = 16b0000000000000100; //4
+      alu.b = 16b0000000000000011; //3
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      seg.values = {5ha, 5hd, 5hd, 5h15};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 16b0000000000001100){
+        states.d = states.ADDMULOF;
+        counter.d = 0;
+          }
+      if (io_dip[0][0] == 1) {
+          result = 16b0;
+        }
+      if (counter.q[MSB]==1 && result != 16b0000000000001100) {
+        states.d = states.ADDERERROR;
+        counter.d = 0;
+        }
+      
+    states.ADDMULOF:
+      alu.alufn = 6b10;
+      alu.a = 16b0100000000000000; // 16384 
+      alu.b = 16b0000000000000010; // 2
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      io_led[2][7] = 1;
+      seg.values = {5ha, 5hd, 5hd, 5h15};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 16b1000000000000000){
+        states.d = states.COMPAREEQUALSTRUE;
+        io_led[0][0] = result[15]; // indicate overflow
+        counter.d = 0;
+          }
+      if (io_dip[0][0] == 1) {
+          result = 16b0;
+        }
+      if (counter.q[MSB]==1 && result != 16b1000000000000000) {
+        states.d = states.ADDERERROR;
+        counter.d = 0;
+        }
+    
+      
+    states.ADDERERROR:
+      counter.d = counter.q+1;
+      seg.values = {5ha, 5he, 5h13, 5h13};
+    if (counter.q[MSB]==1) {
+      states.d = states.ADDERERROR;
+      counter.d = 0;
+    }
+      
+    states.COMPAREEQUALSTRUE: // 16b110011 == 16b110011
+      alu.alufn = 6b110011;
+      alu.a = 16b110011;
+      alu.b = 16b110011;
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      seg.values = {5hc, 5he, 5h1, 5hf};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 1) {
+        states.d = states.COMPAREEQUALSFALSE;
+        counter.d = 0;
+      }
+      if (io_dip[0][0] == 1) {
+          result = 16b0;
+        }
+      if (counter.q[MSB]==1 && result != 1) {
+        states.d = states.COMPAREERROR;
+        counter.d = 0;
+      }
+    
+    states.COMPAREEQUALSFALSE: // False case 16b110010 == 16b110011
+       alu.alufn = 6b110011;
+       alu.a = 16b110010;
+       alu.b = 16b110011;
+       result = alu.op;
+       io_led[1] = result[15:8];
+       io_led[0] = result[7:0]; 
+       counter.d = counter.q+1;
+       seg.values = {5hc, 5he, 5h0, 5hf};
+       if (counter.q[MSB]==1 && result == 0) {
+         states.d = states.COMPARELESSTHANTRUE;
+         counter.d = 0;
+       }
+       if (io_dip[0][0] == 1) {
+           result = 16b1;
+       }
+       if (counter.q[MSB]==1 && result != 0) {
+         states.d = states.COMPAREERROR;
+         counter.d = 0;
+       }
+        
+    states.COMPARELESSTHANTRUE: // True case 16b110010 < 16b110011
+      alu.alufn = 6b110101;
+      alu.a = 16b110010;
+      alu.b = 16b110011;
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      counter.d = counter.q+1;
+      seg.values = {5hc, 5h10, 5h1, 5hf};
+      if (counter.q[MSB]==1 && result == 1) {
+        states.d = states.COMPARELESSTHANFALSE;
+        counter.d = 0;
+      }
+      if (io_dip[0][0] == 1) {
+        result = 16b0;
+      }
+      if (counter.q[MSB]==1 && result != 1) {
+        states.d = states.COMPAREERROR;
+        counter.d = 0;
+      }
+        
+    states.COMPARELESSTHANFALSE: // False case 16b110011 < 16b110010
+      alu.alufn = 6b110101;
+      alu.a = 16b110011;
+      alu.b = 16b110010;
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      counter.d = counter.q+1;
+      seg.values = {5hc, 5h10, 5h0, 5hf};
+      if (counter.q[MSB]==1 && result == 0) {
+        states.d = states.COMPARELESSANDEQUALS1;
+        counter.d = 0;
+      }
+      if (io_dip[0][0] == 1) {
+          result = 16b1;
+      }
+      if (counter.q[MSB]==1 && result != 0) {
+        states.d = states.COMPAREERROR;
+        counter.d = 0;
+      }
+        
+    states.COMPARELESSANDEQUALS1: // True case 16b110011 <= 16b110011
+      alu.alufn = 6b110111;
+      alu.a = 16b110011;
+      alu.b = 16b110011;
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      seg.values = {5hc, 5h10, 5he, 5h1};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 1) {
+        states.d = states.COMPARELESSANDEQUALS2;
+        counter.d = 0;
+      }
+      if (io_dip[0][0] == 1) {
+        result = 16b0;
+      }
+      if (counter.q[MSB]==1 && result != 1) {
+        states.d = states.COMPAREERROR;
+        counter.d = 0;
+      }
+      
+    states.COMPARELESSANDEQUALS2: // True case 16b0 <= 16b1
+      alu.alufn = 6b110111;
+      alu.a = 16b0;
+      alu.b = 16b1;
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      seg.values = {5hc, 5h10, 5he, 5h1};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result[0] == 1) {
+        states.d = states.COMPARELESSANDEQUALS3;
+        counter.d = 0;
+      }
+      if (io_dip[0][0] == 1) {
+        result = 16b0;
+      }
+      if (counter.q[MSB]==1 && result[0] != 1) {
+        states.d = states.COMPAREERROR;
+        counter.d = 0;
+      }
+      
+    states.COMPARELESSANDEQUALS3: // False case 16b110011 <= 16b110010
+      alu.alufn = 6b110111;
+      alu.a = 16b110011;
+      alu.b = 16b110010;
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      counter.d = counter.q+1;
+      seg.values = {5hc, 5h10, 5he, 5h0};     
+      if (counter.q[MSB]==1 && result == 0) {
+        states.d = states.BOOLEANAND;
+        counter.d = 0;
+      }
+      if (io_dip[0][0] == 1) {
+        result = 16b1;
+      }
+      if (counter.q[MSB]==1 && result != 0) {
+        states.d = states.COMPAREERROR;
+        counter.d = 0;
+      }                 
+     
+    states.COMPAREERROR: 
+      seg.values = {5hc, 5he, 5h13, 5h13};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1) {
+        states.d = states.COMPAREERROR;
+        counter.d = 0;
+      }
+        
+    states.BOOLEANAND: // Test case for 16b0011 && 16b0101
+      alu.alufn = 6b11000;
+      alu.a = 16b0011;
+      alu.b = 16b0101;
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      seg.values = {5hb, 5ha, 5h12, 5hd};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 16b0001) {
+        states.d = states.BOOLEANOR;          
+        counter.d = 0;
+      } 
+      if (io_dip[0][0] == 1) {
+        result = 16b0;
+      }
+      if (counter.q[MSB]==1 && result != 16b0001) {
+        states.d = states.BOOLEANERROR;
+        counter.d = 0;
+      }
+    
+    states.BOOLEANOR: // Test case for 16b0011 || 16b0101
+      alu.alufn = 6b11110;
+      alu.a = 16b0011;
+      alu.b = 16b0101;
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      seg.values = {5hb, 5h11, 5h13, 5hf};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 16b0111) {
+        states.d = states.BOOLEANXOR;
+        counter.d = 0;
+      }
+      if (io_dip[0][0] == 1) {
+        result = 16b0;
+      }
+      if (counter.q[MSB]==1 && result != 16b0111) {
+        states.d = states.BOOLEANERROR;
+        counter.d = 0;
+      }
+      
+    states.BOOLEANXOR: // Test case for 16b0011 XOR 16b0101
+      alu.alufn = 6b10110;
+      alu.a = 16b0011;
+      alu.b = 16b0101;
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      seg.values = {5hb, 5h15, 5h11, 5h13};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 16b0110) {
+        states.d = states.BOOLEANA;
+        counter.d = 0;
+      }
+      if (io_dip[0][0] == 1) {
+        result = 16b0;
+       }
+      if (counter.q[MSB]==1 && result != 16b0110) {
+        states.d = states.BOOLEANERROR;
+        counter.d = 0;
+      }
+      
+    states.BOOLEANA: // Test case for A 16b10101100
+      alu.alufn = 6b11010;
+      alu.a = 16b10101100;
+      alu.b = 16b01101100;
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      seg.values = {5hb, 5ha, 5hf, 5hf};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 16b10101100) {
+        states.d = states.SHIFTLEFT;
+        counter.d = 0;
+      }
+      if (io_dip[0][0] == 1) {
+        result = 16b0;
+      }
+      if (counter.q[MSB]==1 && result != 16b10101100) {
+        states.d = states.BOOLEANERROR;
+        counter.d = 0;
+      }   
+      
+    states.BOOLEANERROR:      
+      seg.values = {5hb, 5he, 5h13, 5h13};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1) {
+        states.d = states.BOOLEANERROR;
+        counter.d = 0;
+      }
+  
+      states.SHIFTLEFT: // Test case for 16b0000000000101100 << 7 = 16b0001011000000000
+      alu.alufn = 6b100000;
+      alu.a = 16b0000000000101100;
+      alu.b = 16b0000000000000111;
+      result = alu.op;
+      io_led[1] = result[15:8];
+      io_led[0] = result[7:0]; 
+      seg.values = {5h5, 5h14, 5h10, 5hf};
+      counter.d = counter.q+1;
+      if (counter.q[MSB]==1 && result == 16b0001011000000000) {
+      states.d = states.SHIFTRIGHT;
+      counter.d = 0;
+      }
+      if (io_dip[0][0] == 1) {
+      result = 16b0;
+      }
+      if (counter.q[MSB]==1 && result != 16b0001011000000000) {
+      states.d = states.SHIFTERROR;
+      counter.d = 0;
+      }
+      
+    states.SHIFTRIGHT: // Test case for 16b0000000000101100 >> 2 = 16b0000000000000010
+        alu.alufn = 6b100001;
+        alu.a = 16b0000000000101100;
+        alu.b = 16b0000000000000010;
+        result = alu.op;
+        io_led[1] = result[15:8];
+        io_led[0] = result[7:0]; 
+        seg.values = {5h5, 5h14, 5h13, 5hf};
+        counter.d = counter.q+1;
+        if (counter.q[MSB]==1 && result == 16b0000000000001011) {
+        states.d = states.SHIFTRIGHTARITH;
+        counter.d = 0;
+        }
+        if (io_dip[0][0] == 1) {
+        result = 16b0;
+        }
+        if (counter.q[MSB]==1 && result != 16b0000000000001011) {
+        states.d = states.SHIFTERROR;
+        counter.d = 0;
+        }
+        
+        
+    states.SHIFTRIGHTARITH: // Test case for 16b1011 0000 0000 0000 >> 2 = 16b1110 1100 0000 0000
+        alu.alufn = 6b100011;
+        alu.a = 16b1011000000000000;
+        alu.b = 16b10;
+        result = alu.op;
+        io_led[1] = result[15:8];
+        io_led[0] = result[7:0]; 
+        seg.values = {5h5, 5h14, 5ha, 5hf};
+        counter.d = counter.q+1;
+        if (counter.q[MSB]==1 && result == 16b1110110000000000) {
+        states.d = states.START;
+        counter.d = 0;
+        }
+        if (io_dip[0][0] == 1) {
+        result = 16b0;
+        }
+        if (counter.q[MSB]==1 && result != 16b1110110000000000) {
+        states.d = states.SHIFTERROR;
+        counter.d = 0;
+        } 
+            
+    states.SHIFTERROR:
+        seg.values = {5h5, 5he, 5h13, 5h13};
+        counter.d = counter.q+1;
+    if (counter.q[MSB]==1) {
+        states.d = states.SHIFTERROR;
+        counter.d = 0;
+    }    
+    }                
+  }
+}

@@ -1,0 +1,58 @@
+module alu16 (
+  input a[16],
+  input b[16],
+  input alufn[6],
+  output op[16],
+  output z,
+  output v,
+  output n,
+  output aOP[16]
+) {
+  
+  adder16 add;
+  compare16 cmp;
+  shift16 shift;
+  bool16 bool;
+  
+  
+  always {
+    
+    bool.a = a;
+    bool.b = b;
+    bool.alufn = alufn;
+    
+    add.a = a;
+    add.b = b;
+    add.alufn = alufn;
+    add.carryOut = add.op;
+    
+    z = add.z;
+    v = add.v;
+    n = add.n;
+    aOP = add.op;
+    
+    cmp.a = a;
+    cmp.b = b;
+    cmp.alufn = alufn;
+    cmp.z = add.z;
+    cmp.v = add.v;
+    cmp.n = add.n;
+    
+    shift.a = a;
+    shift.b = b;
+    shift.alufn = alufn;
+    
+    case(alufn[5:4]) {
+      default:
+        op = hFF;
+      2b00:
+        op = add.op;
+      2b01:
+        op = bool.op;
+      2b10:
+        op = shift.op;
+      2b11:
+        op = cmp.op;
+    }
+  }
+}

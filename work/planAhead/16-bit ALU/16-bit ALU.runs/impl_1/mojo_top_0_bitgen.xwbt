@@ -1,0 +1,8 @@
+INTSTYLE=pa
+INFILE=C:\Users\shinj\Desktop\SUTD\Term 4\50.002 Computation Structure\1D\mojo\16-bit ALU 1.0\work\planAhead\16-bit ALU\16-bit ALU.runs\impl_1\mojo_top_0_routed.ncd
+OUTFILE=C:\Users\shinj\Desktop\SUTD\Term 4\50.002 Computation Structure\1D\mojo\16-bit ALU 1.0\work\planAhead\16-bit ALU\16-bit ALU.runs\impl_1\mojo_top_0.bit
+FAMILY=Spartan6
+PART=xc6slx9-2tqg144
+WORKINGDIR=C:\Users\shinj\Desktop\SUTD\Term 4\50.002 Computation Structure\1D\mojo\16-bit ALU 1.0\work\planAhead\16-bit ALU\16-bit ALU.runs\impl_1
+LICENSE=WebPack
+USER_INFO=211836215_0_0_350
