@@ -81,7 +81,7 @@ module mojo_top (
       if (btn_conditionerA.out == 1) {
       states.d = states.ADDERADD;
       }
-    states.MANUALA:
+    states.MANUALA:                     //state to key input A using io_dip
       aInput.d = c{io_dip[1],io_dip[0]};  
       io_led[1] = io_dip[1];
       io_led[0] = io_dip[0];
@@ -91,7 +91,7 @@ module mojo_top (
         states.d = states.MANUALB;
         counter.d = 0;
       }
-    states.MANUALB:
+    states.MANUALB:                     //state to key input B using io_dip
       bInput.d = c{io_dip[1],io_dip[0]};  
       io_led[0] = io_dip[0];
       io_led[1] = io_dip[1];
@@ -101,7 +101,7 @@ module mojo_top (
         states.d = states.MANUALALUFN;
         counter.d = 0;
       }
-    states.MANUALALUFN:    
+    states.MANUALALUFN:                 //state to key input ALUFN using leftmost io_dip
       alufnInput.d = io_dip[2][5:0]; 
       io_led[2][5:0] = io_dip[2][5:0];
       counter.d = counter.q+1;
@@ -110,7 +110,7 @@ module mojo_top (
         states.d = states.MANUALRESULT;
         counter.d = 0;
       }
-    states.MANUALRESULT:
+    states.MANUALRESULT:                //displays result of manual testing using io_leds
       seg.values = {5hf, 5ha, 5h12, 5h5};
       alu.a = aInput.q;
       alu.b = bInput.q;
@@ -120,7 +120,7 @@ module mojo_top (
       states.d = states.MANUALRESULT;
         
       // mathematical operation
-    states.ADDERADD:
+    states.ADDERADD:                    //ADD operation 100(16b1100100) + 23(16b10111) = 123(16b1111011)
       alu.alufn = 6b0;
       alu.a = 16b1100100; //100
       alu.b = 16b10111; //23
@@ -136,12 +136,12 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
         result = 16b0;
       }
-      if (counter.q[MSB]==1 && result != 16b1111011) {
+      if (counter.q[MSB]==1 && result != 16b1111011) {  //goes to ADDERERROR state if result is wrong
         states.d = states.ADDERERROR;
         counter.d = 0;
       }
         
-    states.ADDERSUB:
+    states.ADDERSUB:                    //SUBTRACT operation 100(16b1100100) - 23(16b10111) = 77(16b1001101)
       alu.alufn = 6b1;
       alu.a = 16b1100100; //100
       alu.b = 16b10111; //23
@@ -157,7 +157,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
         result = 16b0;
       }
-      if (counter.q[MSB]==1 && result != 16b1001101) {
+      if (counter.q[MSB]==1 && result != 16b1001101) {  //goes to ADDERERROR state if result is wrong
         counter.d = 0;
         states.d = states.ADDERERROR;
         }
@@ -173,7 +173,7 @@ module mojo_top (
       io_led[2][7] = 1; // indicate testing overflow case
       seg.values = {5ha, 5hd, 5hd, 5ha};
       counter.d = counter.q+1;
-      if (counter.q[MSB]==1 && result == 16b1000000000000001){
+      if (counter.q[MSB]==1 && result == 16b1000000000000001){  
         states.d = states.ADDERSUBOF;
         io_led[0][0] = result[15];
         counter.d = 0;
@@ -181,7 +181,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
             result = 16b0;
           }
-      if (counter.q[MSB]==1 && result != 16b1000000000000001) {
+      if (counter.q[MSB]==1 && result != 16b1000000000000001) { //goes to ADDERERROR state if result is wrong
         states.d = states.ADDERERROR;
         counter.d = 0;
         }
@@ -203,11 +203,11 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
           result = 16b0;
         }
-      if (counter.q[MSB]==1 && result != 16b0111111111111111) {
+      if (counter.q[MSB]==1 && result != 16b0111111111111111) { //goes to ADDERERROR state if result is wrong
         states.d = states.ADDERERROR;
         counter.d = 0;
         }        
-    states.ADDMUL:      // 3 x 4 = 12
+    states.ADDMUL:      // 4(16b100) x 3(16b11) = 12(16b1100)
       alu.alufn = 6b10;
       alu.a = 16b0000000000000100; //4
       alu.b = 16b0000000000000011; //3
@@ -223,7 +223,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
           result = 16b0;
         }
-      if (counter.q[MSB]==1 && result != 16b0000000000001100) {
+      if (counter.q[MSB]==1 && result != 16b0000000000001100) { //goes to ADDERERROR state if result is wrong
         states.d = states.ADDERERROR;
         counter.d = 0;
         }
@@ -246,7 +246,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
           result = 16b0;
         }
-      if (counter.q[MSB]==1 && result != 16b1000000000000000) {
+      if (counter.q[MSB]==1 && result != 16b1000000000000000) { //goes to ADDERERROR state if result is wrong
         states.d = states.ADDERERROR;
         counter.d = 0;
         }
@@ -277,7 +277,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
           result = 16b0;
         }
-      if (counter.q[MSB]==1 && result != 1) {
+      if (counter.q[MSB]==1 && result != 1) {   //goes to COMPAREERROR state if result is wrong
         states.d = states.COMPAREERROR;
         counter.d = 0;
       }
@@ -298,7 +298,7 @@ module mojo_top (
        if (io_dip[0][0] == 1) {
            result = 16b1;
        }
-       if (counter.q[MSB]==1 && result != 0) {
+       if (counter.q[MSB]==1 && result != 0) {      //goes to COMPAREERROR state if result is wrong
          states.d = states.COMPAREERROR;
          counter.d = 0;
        }
@@ -319,7 +319,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
         result = 16b0;
       }
-      if (counter.q[MSB]==1 && result != 1) {
+      if (counter.q[MSB]==1 && result != 1) {   //goes to COMPAREERROR state if result is wrong
         states.d = states.COMPAREERROR;
         counter.d = 0;
       }
@@ -340,7 +340,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
           result = 16b1;
       }
-      if (counter.q[MSB]==1 && result != 0) {
+      if (counter.q[MSB]==1 && result != 0) {   //goes to COMPAREERROR state if result is wrong
         states.d = states.COMPAREERROR;
         counter.d = 0;
       }
@@ -361,7 +361,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
         result = 16b0;
       }
-      if (counter.q[MSB]==1 && result != 1) {
+      if (counter.q[MSB]==1 && result != 1) {   //goes to COMPAREERROR state if result is wrong
         states.d = states.COMPAREERROR;
         counter.d = 0;
       }
@@ -382,7 +382,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
         result = 16b0;
       }
-      if (counter.q[MSB]==1 && result[0] != 1) {
+      if (counter.q[MSB]==1 && result[0] != 1) {    //goes to COMPAREERROR state if result is wrong
         states.d = states.COMPAREERROR;
         counter.d = 0;
       }
@@ -396,14 +396,14 @@ module mojo_top (
       io_led[0] = result[7:0]; 
       counter.d = counter.q+1;
       seg.values = {5hc, 5h10, 5he, 5h0};     
-      if (counter.q[MSB]==1 && result == 0) {
+      if (counter.q[MSB]==1 && result == 0) {   
         states.d = states.BOOLEANAND;
         counter.d = 0;
       }
       if (io_dip[0][0] == 1) {
         result = 16b1;
       }
-      if (counter.q[MSB]==1 && result != 0) {
+      if (counter.q[MSB]==1 && result != 0) {   //goes to COMPAREERROR state if result is wrong
         states.d = states.COMPAREERROR;
         counter.d = 0;
       }                 
@@ -432,7 +432,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
         result = 16b0;
       }
-      if (counter.q[MSB]==1 && result != 16b0001) {
+      if (counter.q[MSB]==1 && result != 16b0001) { //goes to BOOLEANERROR state if result is wrong
         states.d = states.BOOLEANERROR;
         counter.d = 0;
       }
@@ -453,7 +453,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
         result = 16b0;
       }
-      if (counter.q[MSB]==1 && result != 16b0111) {
+      if (counter.q[MSB]==1 && result != 16b0111) { //goes to BOOLEANERROR state if result is wrong
         states.d = states.BOOLEANERROR;
         counter.d = 0;
       }
@@ -474,7 +474,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
         result = 16b0;
        }
-      if (counter.q[MSB]==1 && result != 16b0110) {
+      if (counter.q[MSB]==1 && result != 16b0110) { //goes to BOOLEANERROR state if result is wrong
         states.d = states.BOOLEANERROR;
         counter.d = 0;
       }
@@ -495,7 +495,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
         result = 16b0;
       }
-      if (counter.q[MSB]==1 && result != 16b10101100) {
+      if (counter.q[MSB]==1 && result != 16b10101100) { //goes to BOOLEANERROR state if result is wrong
         states.d = states.BOOLEANERROR;
         counter.d = 0;
       }   
@@ -524,7 +524,7 @@ module mojo_top (
       if (io_dip[0][0] == 1) {
       result = 16b0;
       }
-      if (counter.q[MSB]==1 && result != 16b0001011000000000) {
+      if (counter.q[MSB]==1 && result != 16b0001011000000000) { //goes to SHIFTERROR state if result is wrong
       states.d = states.SHIFTERROR;
       counter.d = 0;
       }
@@ -545,7 +545,7 @@ module mojo_top (
         if (io_dip[0][0] == 1) {
         result = 16b0;
         }
-        if (counter.q[MSB]==1 && result != 16b0000000000001011) {
+        if (counter.q[MSB]==1 && result != 16b0000000000001011) {   //goes to SHIFTERROR state if result is wrong
         states.d = states.SHIFTERROR;
         counter.d = 0;
         }
@@ -567,7 +567,7 @@ module mojo_top (
         if (io_dip[0][0] == 1) {
         result = 16b0;
         }
-        if (counter.q[MSB]==1 && result != 16b1110110000000000) {
+        if (counter.q[MSB]==1 && result != 16b1110110000000000) {   //goes to SHIFTERROR state if result is wrong
         states.d = states.SHIFTERROR;
         counter.d = 0;
         } 
