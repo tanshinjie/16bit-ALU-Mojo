@@ -163,7 +163,7 @@ module mojo_top (
         }
       
     // overflow will show on io_led[0][0]
-    states.ADDERADDOF: // Test case of adding overflow 16384+16385=32768
+    states.ADDERADDOF:        // Test case of adding overflow 16384+16385=32768
       alu.alufn = 6b0;
       alu.a = 16b0100000000000000; //16384
       alu.b = 16b0100000000000001; //16385
@@ -186,7 +186,7 @@ module mojo_top (
         counter.d = 0;
         }
      
-    states.ADDERSUBOF: // Test case of subtracting overflow -32768 - 1 = -32769
+    states.ADDERSUBOF:        // Test case of subtracting overflow -32768 - 1 = -32769
       alu.alufn = 6b1;
       alu.a = 16b1000000000000000; //-32768
       alu.b = 16b0000000000000001; // 1
@@ -207,7 +207,7 @@ module mojo_top (
         states.d = states.ADDERERROR;
         counter.d = 0;
         }        
-    states.ADDMUL: // 3 x 4 = 12
+    states.ADDMUL:      // 3 x 4 = 12
       alu.alufn = 6b10;
       alu.a = 16b0000000000000100; //4
       alu.b = 16b0000000000000011; //3
@@ -228,7 +228,7 @@ module mojo_top (
         counter.d = 0;
         }
       
-    states.ADDMULOF:
+    states.ADDMULOF:        // Test case of multiplying overflow 16384 x 2 = 32768
       alu.alufn = 6b10;
       alu.a = 16b0100000000000000; // 16384 
       alu.b = 16b0000000000000010; // 2
@@ -260,6 +260,7 @@ module mojo_top (
       counter.d = 0;
     }
       
+    // Compare  
     states.COMPAREEQUALSTRUE: // 16b110011 == 16b110011
       alu.alufn = 6b110011;
       alu.a = 16b110011;
